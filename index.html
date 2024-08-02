@@ -1,0 +1,157 @@
+<html style="height: 100%; margin: 0;">
+<head>
+
+	<title>topodemo</title>
+
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+	<link rel="shortcut icon" type="image/x-icon" href="docs/images/favicon.ico" />
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+	<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+	<script src='https://api.mapbox.com/mapbox.js/plugins/leaflet-fullscreen/v1.0.1/Leaflet.fullscreen.min.js'></script>
+	<script src="./js/leaflet-hash-master/leaflet-hash.js"></script>
+	<link href='https://api.mapbox.com/mapbox.js/plugins/leaflet-fullscreen/v1.0.1/leaflet.fullscreen.css' rel='stylesheet' />
+	<link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/font-awesome/4.3.0/css/font-awesome.min.css"/>
+	<link rel="stylesheet" href="./dist/leaflet.zoomhome.css"/>
+	<script src="./dist/leaflet.zoomhome.min.js"></script>
+	<script src="./dist/bundle.js"></script>
+	<link href='https://api.tiles.mapbox.com/mapbox.js/plugins/leaflet-draw/v0.2.2/leaflet.draw.css' rel='stylesheet' />
+	<script src='https://api.tiles.mapbox.com/mapbox.js/plugins/leaflet-draw/v0.2.2/leaflet.draw.js'></script>
+	<script src="./js/L.KML.js"></script>
+	<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+
+
+	</head>
+	<body style="height: 100%; margin: 0; overflow: hidden;">
+		<div style="position: absolute; bottom: 50px; right: 20px; z-index: 999;">
+			<img src="tsunami.png" style="pointer-events: none;">
+		</div>
+		<div id='map' style="height: 100%; width: 100%; z-index: 1;"></div>
+	</body>
+
+	<script>
+
+	window.onbeforeunload = function() {
+	    return "";
+	};
+
+	(function() {
+	    var originalConsoleLog = console.log;
+	    var logs = [];
+
+	    console.log = function() {
+	        logs.push(Array.from(arguments).join(' '));
+	        originalConsoleLog.apply(console, arguments);
+	    };
+
+	    window.addEventListener("beforeunload", function() {
+	        if (logs.length > 0) {
+	            var blob = new Blob([logs.join('\n')], { type: 'text/plain' });
+	            var a = document.createElement('a');
+	            a.href = URL.createObjectURL(blob);
+	            a.download = 'console-logs.txt';
+	            a.click();
+	        }
+	    });
+	})();
+
+	var map1 = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png', {
+	maxZoom: 17,
+	attribution: "<a href='https://maps.gsi.go.jp/development/ichiran.html' target='_blank'>地理院タイル・淡色地図</a>"
+	});
+
+	var map2 = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/ort/{z}/{x}/{y}.jpg', {
+	maxZoom: 17,
+	attribution: "<a href='https://maps.gsi.go.jp/development/ichiran.html' target='_blank'>地理院タイル・電子国土基本図（オルソ画像）（2007年～）</a>"
+	});
+
+	var map4 = L.tileLayer('https://disaportaldata.gsi.go.jp/raster/04_tsunami_newlegend_data/{z}/{x}/{y}.png', {
+	maxZoom: 17,
+	attribution: "<a href='https://disaportal.gsi.go.jp/hazardmap/copyright/opendata.html#tsunami' target='_blank'>ハザードマップポータルサイト 津波浸水想定</a>",
+	opacity: 0.7
+	});
+
+
+
+
+		var map = L.map('map', {
+			center: [37.0853,136.9652],
+			zoom: 10,
+			minZoom: 10,
+			maxZoom: 17,
+			layers: [map1, map4],
+			zoomControl: false
+		});
+
+		var baseLayers = {
+			"地形図": map1,
+			"被災前の空中写真": map2
+		};
+
+		var overlayLayers = {
+			"津波浸水想定":map4,
+		};
+
+		L.control.layers(baseLayers,overlayLayers).addTo(map);
+		L.control.scale({imperial: false}).addTo(map);
+
+		var zoomHome = L.Control.zoomHome();
+		zoomHome.addTo(map);
+		map.addControl(new L.Control.Fullscreen());
+
+		var printer = L.easyPrint({
+			tileLayer: map1,
+			sizeModes: ['Current', 'A4Landscape', 'A4Portrait'],
+			filename: 'Map',
+			exportOnly: true,
+			hideControlContainer: true
+}).addTo(map);
+
+function manualPrint () {
+	printer.printMap('CurrentSize', 'MyManualPrint')
+}
+
+map.on('overlayadd overlayremove baselayerchange', function(eventLayer) {
+	var eventName = event.type;
+	var layerName = eventLayer.name;
+	var layerShown = map.hasLayer(eventLayer.layer);
+
+	console.log(eventName + ': ' + layerName + ' shown: ' + layerShown);
+});
+
+var hash = new L.Hash(map);
+
+// 図形をまとめるためのオブジェクト
+var drawnItems = new L.FeatureGroup().addTo(map);
+var drawControl = new L.Control.Draw({
+	draw: {
+    polyline: false
+    ,polygon: false
+    ,rectangle: false
+    ,circle: false
+    ,marker: true
+  },
+  edit: {
+    featureGroup: drawnItems
+  }
+  ,position: 'topleft'
+}).addTo(map);
+
+map.on('draw:created', function(e) {
+  drawnItems.addLayer(e.layer);
+});
+
+let intervalId = setInterval(() => {
+  console.log(window.location.href);
+}, 2000);
+
+setTimeout(() => {
+  clearInterval(intervalId);
+}, 7200000); // 2時間（2 * 60 * 60 * 1000ミリ秒）
+
+</script>
+
+
+</html>

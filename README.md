@@ -1,1 +1,3 @@
-# bousai2
+# drr-map
+
+This is a test repository.
